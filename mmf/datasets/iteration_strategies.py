@@ -293,3 +293,74 @@ class RatiosIterationStrategy(IterationStrategy):
             return list(self.config.get("sampling_ratios", {}).keys())
         else:
             return datasets
+
+
+
+@registry.register_iteration_strategy("temperature_scaled")
+class TemperatureScaledIterationStrategy(IterationStrategy):
+    """
+    Samples index based on size of each dataset. Bigger datasets
+    are sampled more and this strategy requires completing
+    all iterators before starting new ones. Default in MMF.
+    """
+
+    @dataclass
+    class Config(IterationStrategy.Config):
+        name: str = "temperature_scaled"
+
+    def __init__(
+        self, config: Config, dataloaders: Dict[str, DataLoader], *args, **kwargs
+    ):
+        super().__init__(config, dataloaders, *args, **kwargs)
+        self._per_dataset_lengths = []
+        self._total_length = 0
+        self.T = self.config.get("temperature_scaling_factor")
+        assert (
+                self.T>=1 
+        ), "temperature scaling factor needs to be >= 1"
+        self._scaling_factor = 1/T 
+        for loader in self.dataloaders.values():
+            # Some loaders might not have dataset attribute
+            # set, in this case we need to fail gracefully as we can't
+            # calculate lengths.
+            assert hasattr(loader, "dataset"), (
+                "loaders need dataset objects to work with "
+                + "'size_proportional' sampling"
+            )
+
+            dataset_instance = loader.dataset
+
+            assert hasattr(dataset_instance, "__len__"), (
+                "all datasets should have __len__ defined "
+                + "to work with proportional sampling iterator"
+            )
+            dataset_instance_length = len(dataset_instance)
+            assert (
+                dataset_instance_length
+            ), f"dataset: {dataset_instance.dataset_type} is empty"
+            self._per_dataset_lengths.append(dataset_instance_length)
+            self._total_length += dataset_instance_length
+        
+
+        self._dataset_probabilities = self._per_dataset_lengths[:]
+        self._dataset_probabilities = [
+            (prob / self._total_length)**self._scaling_constant for prob in self._dataset_probabilities
+        ]
+
+        #normalizing the probabilities
+        scaling._normalizing_factor = sum(self._dataset_probabilites)
+        self._dataset_probabilities = [
+            prob / self._normalizing_factor for prob in self._dataset_probabilities
+        ]
+
+
+         
+    def __call__(self, *args, **kwargs):
+        choice = np.random.choice(
+            len(self.dataloaders), 1, p=self._dataset_probabilities
+        )[0]
+        return choice
+
+    @property
+    def should_exhaust_all_iterators(self):
+        return True 

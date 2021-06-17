@@ -323,7 +323,7 @@ class MultiDatasetLoader(MultiDataLoader):
 
     # Kept for backwards compatibility for now
     # TODO: Remove in future.
-    def _infer_dataset_probabilities(self):
+    def _infer_dataset_probabilities(self)
         from mmf.utils.configuration import get_global_config
 
         training = get_global_config("training")
